@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoxGem - Italian Text to Speech</title>
+    <meta name="theme-color" content="#0b1323">
+
+    <!-- Placeholder favicon (replace with real icons when supplied) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%230e172a'/%3E%3Cg fill='%2338bdf8'%3E%3Crect x='98' y='210' width='28' height='92' rx='14'/%3E%3Crect x='158' y='150' width='28' height='212' rx='14'/%3E%3Crect x='242' y='100' width='28' height='312' rx='14'/%3E%3Crect x='326' y='150' width='28' height='212' rx='14'/%3E%3Crect x='386' y='210' width='28' height='92' rx='14'/%3E%3C/g%3E%3C/svg%3E">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { fontFamily: { mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'] } } }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/wavesurfer.js@7.8.0/dist/wavesurfer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/wavesurfer.js@7.8.0/dist/plugins/timeline.min.js"></script>
+
+    <style>
+        #waveform ::part(scroll) {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+            padding-bottom: 6px;
+        }
+        #waveform ::part(scroll)::-webkit-scrollbar { height: 6px; }
+        #waveform ::part(scroll)::-webkit-scrollbar-track { background: rgba(148, 163, 184, 0.12); border-radius: 9999px; }
+        #waveform ::part(scroll)::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 9999px; }
+        #waveform ::part(scroll)::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.9); }
+        .seg-btn[aria-pressed="true"] { background: #2563eb; color: #fff; box-shadow: 0 1px 6px rgba(37, 99, 235, .35); }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200 selection:bg-blue-500 selection:text-white pb-20">
+
+    <!-- Header -->
+    <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-2.5 sm:w-3 h-7 sm:h-8 bg-blue-500 rounded-full animate-pulse shrink-0"></div>
+                <h1 class="text-lg sm:text-xl font-bold tracking-tight shrink-0">Vox<span class="text-blue-500">Gem</span></h1>
+                <span id="js-status" class="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-medium shrink-0">Loading</span>
+            </div>
+
+            <div class="flex items-center gap-1.5 sm:gap-2.5">
+                <button id="api-toggle-btn" type="button" class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-700">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    <span id="api-badge-text" class="hidden sm:inline truncate">API Key</span>
+                    <span id="api-dot" class="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+                </button>
+
+                <button id="theme-toggle" type="button" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="Toggle Theme">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 hidden dark:block text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 block dark:hidden text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- API Key Drawer -->
+        <div id="api-drawer" class="hidden border-t border-slate-200 dark:border-slate-800 bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <h3 class="text-sm font-semibold">Gemini API Key</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Your key stays in this browser and is sent only to Google's Gemini API.
+                            Get one at <a class="text-blue-500 hover:underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <div class="relative w-full md:w-72">
+                            <input id="api-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="AIza..."
+                                class="w-full pl-3.5 pr-10 py-2 text-sm rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+                            <button id="api-eye-btn" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-blue-500" title="Show / hide key">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+                        </div>
+                        <button id="test-key-btn" type="button" class="px-2.5 py-2 text-xs font-medium text-slate-500 hover:text-blue-500 transition shrink-0">Test</button>
+                        <button id="clear-key-btn" type="button" class="px-2.5 py-2 text-xs font-medium text-slate-500 hover:text-red-500 transition shrink-0">Clear</button>
+                        <button id="close-drawer-btn" type="button" class="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition shrink-0">Done</button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                        <input id="remember-key" type="checkbox" class="accent-blue-600 w-4 h-4">
+                        Remember on this device
+                    </label>
+                    <span class="text-[11px] text-slate-400">Unchecked: the key is forgotten when you close the tab.</span>
+                    <span id="key-test-result" class="text-[11px] font-medium"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
+
+        <!-- Card 1: Voices & Style -->
+        <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-sm sm:text-base font-bold flex items-center gap-2">
+                    <span>Voices &amp; Style</span>
+                    <span id="settings-saved" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 opacity-0 transition-opacity duration-300">Saved</span>
+                </h2>
+                <div class="inline-flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 text-xs sm:text-sm font-medium" role="group" aria-label="Mode">
+                    <button id="mode-single" type="button" class="seg-btn px-3.5 py-1.5 rounded-lg transition" aria-pressed="true">Sofia only</button>
+                    <button id="mode-dialogue" type="button" class="seg-btn px-3.5 py-1.5 rounded-lg transition" aria-pressed="false">Dialogue (Sofia + Omri)</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Sofia -->
+                <div class="space-y-1.5">
+                    <label for="sofia-select" class="text-xs font-semibold text-slate-500 dark:text-slate-400">Sofia voice</label>
+                    <div class="flex items-center gap-2">
+                        <select id="sofia-select" class="flex-1 min-w-0 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"></select>
+                        <button id="sofia-preview" type="button" class="px-3 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0" title="Play a short sample (uses a little of your API quota the first time)">&#9654; Preview</button>
+                    </div>
+                    <input id="sofia-custom" type="text" autocomplete="off" spellcheck="false" placeholder="Type a voice name"
+                        class="hidden w-full px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <!-- Omri -->
+                <div id="omri-block" class="space-y-1.5 hidden">
+                    <label for="omri-select" class="text-xs font-semibold text-slate-500 dark:text-slate-400">Omri voice</label>
+                    <div class="flex items-center gap-2">
+                        <select id="omri-select" class="flex-1 min-w-0 bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"></select>
+                        <button id="omri-preview" type="button" class="px-3 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0" title="Play a short sample (uses a little of your API quota the first time)">&#9654; Preview</button>
+                    </div>
+                    <input id="omri-custom" type="text" autocomplete="off" spellcheck="false" placeholder="Type a voice name"
+                        class="hidden w-full px-3.5 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+
+            <details id="style-details" class="group rounded-xl border border-slate-200 dark:border-slate-800">
+                <summary class="cursor-pointer select-none px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                    <span>Style instructions</span>
+                    <span class="text-[11px] font-normal text-slate-400 group-open:hidden">tap to edit</span>
+                </summary>
+                <div class="px-4 pb-4 space-y-2">
+                    <textarea id="style-input" rows="4" class="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed"></textarea>
+                    <button id="style-reset" type="button" class="text-xs text-blue-500 hover:underline">Reset to default</button>
+                </div>
+            </details>
+        </section>
+
+        <!-- Card 2: Script -->
+        <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm sm:text-base font-bold">Italian script</h2>
+                <div id="turn-helpers" class="hidden items-center gap-2">
+                    <button id="add-sofia" type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">+ Sofia</button>
+                    <button id="add-omri" type="button" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">+ Omri</button>
+                </div>
+            </div>
+
+            <textarea id="script-input" lang="it" spellcheck="true" rows="8" placeholder="Scrivi qui il testo in italiano..."
+                class="w-full px-4 py-3 text-base sm:text-lg rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed"></textarea>
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <span id="char-count" class="text-xs font-mono text-slate-400">0 characters</span>
+                <button id="generate-btn" type="button" class="w-full sm:w-auto justify-center px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                    <svg id="gen-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                    <svg id="gen-spinner" class="animate-spin h-4 w-4 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span id="gen-text">Generate Audio</span>
+                    <span class="hidden sm:inline text-[10px] font-mono opacity-70">Ctrl+Enter</span>
+                </button>
+            </div>
+
+            <div id="message" class="hidden text-xs px-4 py-3 rounded-xl break-words"></div>
+        </section>
+
+        <!-- Card 3: Player -->
+        <section id="player-section" class="hidden space-y-4 sm:space-y-6">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-row items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="text-[10px] sm:text-xs uppercase tracking-wider text-slate-400 font-semibold mb-0.5 sm:mb-1">Position</div>
+                    <div id="current-time" class="font-mono text-2xl sm:text-4xl md:text-5xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">00:00.0</div>
+                </div>
+                <div class="text-right shrink-0">
+                    <div class="text-[10px] sm:text-xs uppercase tracking-wider text-slate-400 font-semibold mb-0.5 sm:mb-1">Duration</div>
+                    <div id="total-time" class="font-mono text-base sm:text-2xl text-slate-600 dark:text-slate-400">00:00.0</div>
+                </div>
+            </div>
+
+            <div id="waveform-card" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm relative">
+                <div id="loading-overlay" class="absolute inset-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-2xl hidden">
+                    <div class="text-blue-500 font-medium text-sm sm:text-base">Drawing waveform...</div>
+                </div>
+                <div id="waveform" class="w-full"></div>
+                <div id="wave-timeline" class="w-full mt-2"></div>
+            </div>
+
+            <div id="main-controls-card" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+                <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 sm:gap-6">
+                    <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+                        <button id="play-btn" type="button" class="w-full sm:w-auto justify-center px-6 py-3 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-semibold rounded-xl transition flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                            <svg id="play-icon" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg id="pause-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                            <span id="play-text">Play</span>
+                        </button>
+                        <div class="flex items-center justify-between w-full sm:w-auto bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                            <button id="replay-btn" type="button" class="flex-1 sm:flex-initial px-3 py-2 text-xs font-medium hover:bg-white dark:hover:bg-slate-700 rounded-lg transition" title="Replay from start">&#8634; Start</button>
+                            <button id="skip-back" type="button" class="flex-1 sm:flex-initial px-3 py-2 text-xs font-mono hover:bg-white dark:hover:bg-slate-700 rounded-lg transition border-l border-slate-200 dark:border-slate-700" title="Left Arrow">-2s</button>
+                            <button id="skip-forward" type="button" class="flex-1 sm:flex-initial px-3 py-2 text-xs font-mono hover:bg-white dark:hover:bg-slate-700 rounded-lg transition border-l border-slate-200 dark:border-slate-700" title="Right Arrow">+2s</button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 flex-1 lg:max-w-md">
+                        <div class="flex items-center gap-2.5 flex-1 min-w-[160px]">
+                            <svg class="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                            <input id="zoom-slider" type="range" min="10" max="500" value="10" class="w-full accent-blue-600 cursor-pointer h-2 rounded-lg">
+                            <span id="zoom-label" class="text-xs font-mono text-slate-400 w-11 text-right shrink-0">1.0x</span>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="text-xs text-slate-400 font-medium">Speed:</span>
+                            <select id="speed-select" class="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-2.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="0.85">0.85x</option>
+                                <option value="1" selected>1.0x</option>
+                                <option value="1.25">1.25x</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <input id="filename-input" type="text" autocomplete="off" spellcheck="false" aria-label="File name"
+                        class="flex-1 min-w-0 px-3.5 py-2.5 text-sm font-mono rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <button id="download-btn" type="button" class="justify-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white text-sm font-semibold rounded-xl transition flex items-center gap-2 shadow-md shadow-emerald-500/15 shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download WAV
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-400">Audio isn't kept after you leave the page. Download it to keep it.</p>
+            </div>
+
+            <div class="hidden sm:flex flex-wrap justify-center gap-6 text-xs text-slate-400 pt-1">
+                <div><kbd class="px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 font-mono">Space</kbd> Play / Pause</div>
+                <div><kbd class="px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 font-mono">&larr;</kbd> <kbd class="px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 font-mono">&rarr;</kbd> Skip 2s</div>
+                <div><kbd class="px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 font-mono">Ctrl + Enter</kbd> Generate</div>
+                <div><kbd class="px-2 py-1 bg-slate-200 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 font-mono">Mouse Wheel</kbd> Zoom</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Floating mini-player -->
+    <div id="floating-controls" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 sm:gap-3 px-3.5 py-2.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/90 shadow-2xl shadow-blue-500/10 transition-all duration-300 translate-y-24 opacity-0 pointer-events-none">
+        <button id="float-play-btn" type="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs sm:text-sm font-semibold rounded-xl transition flex items-center gap-1.5 shadow-md shadow-blue-500/20">
+            <svg id="float-play-icon" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="float-pause-icon" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            <span id="float-play-text">Play</span>
+        </button>
+        <div id="float-time" class="font-mono text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 px-1.5">00:00.0</div>
+        <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 text-xs font-mono">
+            <button id="float-skip-back" type="button" class="px-2 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition">-2s</button>
+            <button id="float-skip-forward" type="button" class="px-2 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition border-l border-slate-200 dark:border-slate-700">+2s</button>
+        </div>
+        <button id="float-top-btn" type="button" class="p-2 text-slate-400 hover:text-blue-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Scroll to top">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+        </button>
+    </div>
+
+    <script>
+        // ===================== Config =====================
+        const CONFIG = {
+            MODEL_ID: 'gemini-3.8-flash-tts',
+            API_BASE: 'https://generativelanguage.googleapis.com/v1beta/models',
+            SAMPLE_RATE: 24000,
+            DEFAULT_VOICES: { sofia: 'Sulafat', omri: 'Achird' },
+            DEFAULT_STYLE: 'Speak in a warm, patient, and encouraging tone, like a friendly Italian language teacher. Read at a slow, deliberate pace (around 0.8x normal speed) with crystal-clear pronunciation, enunciating every syllable and vowel distinctly, leaving natural pauses between turns.',
+            PREVIEW: {
+                sofia: 'Ciao! Sono Sofia, la tua insegnante di italiano.',
+                omri: 'Ciao, sono Omri. Piacere di conoscerti!'
+            }
+        };
+
+        const VOICES = [
+            { name: 'Sulafat', style: 'Warm', gender: 'F' }, { name: 'Vindemiatrix', style: 'Gentle', gender: 'F' },
+            { name: 'Achernar', style: 'Soft', gender: 'F' }, { name: 'Despina', style: 'Smooth', gender: 'F' },
+            { name: 'Erinome', style: 'Clear', gender: 'F' }, { name: 'Callirrhoe', style: 'Easy-going', gender: 'F' },
+            { name: 'Aoede', style: 'Breezy', gender: 'F' }, { name: 'Kore', style: 'Firm', gender: 'F' },
+            { name: 'Leda', style: 'Youthful', gender: 'F' }, { name: 'Zephyr', style: 'Bright', gender: 'F' },
+            { name: 'Autonoe', style: 'Bright', gender: 'F' }, { name: 'Laomedeia', style: 'Upbeat', gender: 'F' },
+            { name: 'Pulcherrima', style: 'Forward', gender: 'F' }, { name: 'Gacrux', style: 'Mature', gender: 'F' },
+            { name: 'Achird', style: 'Friendly', gender: 'M' }, { name: 'Iapetus', style: 'Clear', gender: 'M' },
+            { name: 'Sadaltager', style: 'Knowledgeable', gender: 'M' }, { name: 'Umbriel', style: 'Easy-going', gender: 'M' },
+            { name: 'Algieba', style: 'Smooth', gender: 'M' }, { name: 'Charon', style: 'Informative', gender: 'M' },
+            { name: 'Rasalgethi', style: 'Informative', gender: 'M' }, { name: 'Schedar', style: 'Even', gender: 'M' },
+            { name: 'Zubenelgenubi', style: 'Casual', gender: 'M' }, { name: 'Sadachbia', style: 'Lively', gender: 'M' },
+            { name: 'Puck', style: 'Upbeat', gender: 'M' }, { name: 'Fenrir', style: 'Excitable', gender: 'M' },
+            { name: 'Orus', style: 'Firm', gender: 'M' }, { name: 'Alnilam', style: 'Firm', gender: 'M' },
+            { name: 'Enceladus', style: 'Breathy', gender: 'M' }, { name: 'Algenib', style: 'Gravelly', gender: 'M' }
+        ];
+        const CUSTOM = '__custom__';
+
+        // ===================== Helpers =====================
+        const $ = (id) => document.getElementById(id);
+        const htmlEl = document.documentElement;
+
+        function safeGet(storage, key) { try { return storage.getItem(key); } catch (e) { return null; } }
+        function safeSet(storage, key, val) { try { storage.setItem(key, val); } catch (e) { /* storage unavailable */ } }
+        function safeRemove(storage, key) { try { storage.removeItem(key); } catch (e) { /* ignore */ } }
+
+        function formatTime(seconds) {
+            const s = Math.max(0, seconds || 0);
+            const mins = Math.floor(s / 60);
+            const secs = Math.floor(s % 60);
+            const tenths = Math.floor((s % 1) * 10);
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
+        }
+
+        // ===================== Theme =====================
+        const THEME_KEY = 'voxgem_theme';
+        if (safeGet(localStorage, THEME_KEY) === 'light') htmlEl.classList.remove('dark');
+        $('theme-toggle').addEventListener('click', () => {
+            htmlEl.classList.toggle('dark');
+            safeSet(localStorage, THEME_KEY, htmlEl.classList.contains('dark') ? 'dark' : 'light');
+            updateWaveColors();
+        });
+
+        // ===================== Settings (auto-saved) =====================
+        const SETTINGS_KEY = 'voxgem_settings';
+        const defaultSettings = () => ({
+            mode: 'single',
+            sofiaVoice: CONFIG.DEFAULT_VOICES.sofia, sofiaCustom: '',
+            omriVoice: CONFIG.DEFAULT_VOICES.omri, omriCustom: '',
+            style: CONFIG.DEFAULT_STYLE,
+            speed: 1,
+            draft: ''
+        });
+
+        function loadSettings() {
+            const base = defaultSettings();
+            try {
+                const parsed = JSON.parse(safeGet(localStorage, SETTINGS_KEY) || '{}');
+                return { ...base, ...parsed };
+            } catch (e) { return base; }
+        }
+
+        let settings = loadSettings();
+        let savedTickTimer = null;
+
+        function persistSettings() {
+            safeSet(localStorage, SETTINGS_KEY, JSON.stringify(settings));
+            const tick = $('settings-saved');
+            tick.classList.remove('opacity-0');
+            clearTimeout(savedTickTimer);
+            savedTickTimer = setTimeout(() => tick.classList.add('opacity-0'), 1200);
+        }
+
+        let debounceTimer = null;
+        function persistSettingsDebounced() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(persistSettings, 300);
+        }
+
+        // ===================== Voice dropdowns =====================
+        function buildVoiceSelect(selectEl) {
+            const group = (label, gender) => {
+                const opts = VOICES.filter(v => v.gender === gender)
+                    .map(v => `<option value="${v.name}">${v.name} — ${v.style}</option>`).join('');
+                return `<optgroup label="${label}">${opts}</optgroup>`;
+            };
+            selectEl.innerHTML = group('Female-sounding', 'F') + group('Male-sounding', 'M') +
+                `<option value="${CUSTOM}">Custom…</option>`;
+        }
+
+        function applyVoiceControls(who) {
+            const sel = $(`${who}-select`);
+            const custom = $(`${who}-custom`);
+            const key = `${who}Voice`;
+            const known = VOICES.some(v => v.name === settings[key]);
+            sel.value = known || settings[key] === CUSTOM ? settings[key] : CUSTOM;
+            if (!known && settings[key] !== CUSTOM) {
+                // A stored name that isn't in the list is treated as a custom voice.
+                settings[`${who}Custom`] = settings[key];
+                settings[key] = CUSTOM;
+            }
+            custom.value = settings[`${who}Custom`] || '';
+            custom.classList.toggle('hidden', sel.value !== CUSTOM);
+        }
+
+        function effectiveVoice(who) {
+            const v = settings[`${who}Voice`];
+            return (v === CUSTOM ? settings[`${who}Custom`] : v || '').trim();
+        }
+
+        ['sofia', 'omri'].forEach((who) => {
+            buildVoiceSelect($(`${who}-select`));
+            applyVoiceControls(who);
+            $(`${who}-select`).addEventListener('change', (e) => {
+                settings[`${who}Voice`] = e.target.value;
+                $(`${who}-custom`).classList.toggle('hidden', e.target.value !== CUSTOM);
+                if (e.target.value === CUSTOM) $(`${who}-custom`).focus();
+                persistSettings();
+            });
+            $(`${who}-custom`).addEventListener('input', (e) => {
+                settings[`${who}Custom`] = e.target.value;
+                persistSettingsDebounced();
+            });
+        });
+
+        // ===================== Mode, style, script =====================
+        function applyMode() {
+            const dialogue = settings.mode === 'dialogue';
+            $('mode-single').setAttribute('aria-pressed', String(!dialogue));
+            $('mode-dialogue').setAttribute('aria-pressed', String(dialogue));
+            $('omri-block').classList.toggle('hidden', !dialogue);
+            $('turn-helpers').classList.toggle('hidden', !dialogue);
+            $('turn-helpers').classList.toggle('flex', dialogue);
+            $('script-input').placeholder = dialogue
+                ? 'Sofia: Ciao Omri, come stai?\nOmri: Sto bene, grazie!'
+                : 'Scrivi qui il testo in italiano...';
+        }
+        $('mode-single').addEventListener('click', () => { settings.mode = 'single'; applyMode(); persistSettings(); });
+        $('mode-dialogue').addEventListener('click', () => { settings.mode = 'dialogue'; applyMode(); persistSettings(); });
+        applyMode();
+
+        const styleInput = $('style-input');
+        styleInput.value = settings.style;
+        styleInput.addEventListener('input', () => { settings.style = styleInput.value; persistSettingsDebounced(); });
+        $('style-reset').addEventListener('click', () => {
+            styleInput.value = CONFIG.DEFAULT_STYLE;
+            settings.style = CONFIG.DEFAULT_STYLE;
+            persistSettings();
+        });
+
+        const scriptInput = $('script-input');
+        scriptInput.value = settings.draft || '';
+        function updateCharCount() {
+            const n = scriptInput.value.length;
+            $('char-count').textContent = `${n.toLocaleString()} character${n === 1 ? '' : 's'}`;
+        }
+        updateCharCount();
+        scriptInput.addEventListener('input', () => {
+            settings.draft = scriptInput.value;
+            updateCharCount();
+            persistSettingsDebounced();
+        });
+
+        function insertTurn(name) {
+            const v = scriptInput.value;
+            const prefix = `${name}: `;
+            scriptInput.value = (v && !v.endsWith('\n') ? v + '\n' : v) + prefix;
+            scriptInput.focus();
+            scriptInput.setSelectionRange(scriptInput.value.length, scriptInput.value.length);
+            scriptInput.dispatchEvent(new Event('input'));
+        }
+        $('add-sofia').addEventListener('click', () => insertTurn('Sofia'));
+        $('add-omri').addEventListener('click', () => insertTurn('Omri'));
+
+        // ===================== API key =====================
+        const KEY_STORAGE = 'voxgem_api_key';
+        const REMEMBER_FLAG = 'voxgem_remember_key';
+        const apiDrawer = $('api-drawer');
+        const apiKeyInput = $('api-key-input');
+        const rememberBox = $('remember-key');
+
+        function getApiKey() {
+            return (safeGet(localStorage, KEY_STORAGE) || safeGet(sessionStorage, KEY_STORAGE) || '').trim();
+        }
+
+        function storeApiKey(val) {
+            safeRemove(localStorage, KEY_STORAGE);
+            safeRemove(sessionStorage, KEY_STORAGE);
+            if (!val) return;
+            safeSet(rememberBox.checked ? localStorage : sessionStorage, KEY_STORAGE, val);
+        }
+
+        function updateApiStatusUI() {
+            const has = Boolean(getApiKey());
+            $('api-badge-text').textContent = has ? 'Key set' : 'API Key';
+            $('api-dot').className = `w-2 h-2 rounded-full shrink-0 ${has ? 'bg-emerald-500' : 'bg-slate-400'}`;
+        }
+
+        rememberBox.checked = safeGet(localStorage, REMEMBER_FLAG) === '1';
+        apiKeyInput.value = getApiKey();
+        updateApiStatusUI();
+
+        $('api-toggle-btn').addEventListener('click', () => {
+            apiDrawer.classList.toggle('hidden');
+            if (!apiDrawer.classList.contains('hidden')) apiKeyInput.focus();
+        });
+        $('close-drawer-btn').addEventListener('click', () => apiDrawer.classList.add('hidden'));
+        $('api-eye-btn').addEventListener('click', () => {
+            apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+        });
+        apiKeyInput.addEventListener('input', () => {
+            storeApiKey(apiKeyInput.value.trim());
+            $('key-test-result').textContent = '';
+            updateApiStatusUI();
+        });
+        rememberBox.addEventListener('change', () => {
+            safeSet(localStorage, REMEMBER_FLAG, rememberBox.checked ? '1' : '0');
+            storeApiKey(apiKeyInput.value.trim());
+        });
+        $('clear-key-btn').addEventListener('click', () => {
+            apiKeyInput.value = '';
+            storeApiKey('');
+            $('key-test-result').textContent = '';
+            updateApiStatusUI();
+        });
+
+        $('test-key-btn').addEventListener('click', async () => {
+            const result = $('key-test-result');
+            const key = getApiKey();
+            if (!key) { result.textContent = 'Paste a key first.'; result.className = 'text-[11px] font-medium text-red-500'; return; }
+            result.textContent = 'Testing...';
+            result.className = 'text-[11px] font-medium text-slate-400';
+            try {
+                const res = await fetch(CONFIG.API_BASE, { headers: { 'x-goog-api-key': key } });
+                if (res.ok) {
+                    result.textContent = 'Key works.';
+                    result.className = 'text-[11px] font-medium text-emerald-500';
+                } else {
+                    const msg = await readApiError(res);
+                    result.textContent = `Rejected: ${msg}`;
+                    result.className = 'text-[11px] font-medium text-red-500';
+                }
+            } catch (e) {
+                result.textContent = 'Network error.';
+                result.className = 'text-[11px] font-medium text-red-500';
+            }
+        });
+
+        // ===================== Messages =====================
+        const messageEl = $('message');
+        function showMessage(text, type = 'error') {
+            const styles = {
+                error: 'bg-red-500/10 text-red-500 border border-red-500/20',
+                ok: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+                warn: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+            };
+            messageEl.textContent = text;
+            messageEl.className = `text-xs px-4 py-3 rounded-xl break-words ${styles[type]}`;
+        }
+        function hideMessage() { messageEl.classList.add('hidden'); }
+
+        // ===================== Gemini TTS =====================
+        async function readApiError(res) {
+            let msg = `HTTP ${res.status}`;
+            try {
+                const data = await res.json();
+                if (data && data.error && data.error.message) msg = `${res.status}: ${data.error.message}`;
+            } catch (e) { /* non-JSON body */ }
+            return msg;
+        }
+
+        function describeApiError(res, msg) {
+            if (res.status === 429) return `Quota exceeded (${msg}). Wait a bit or check your Gemini plan.`;
+            if (res.status === 400 && /voice/i.test(msg)) return `Invalid voice name (${msg}). Pick another voice or fix the custom name.`;
+            if (res.status === 400 || res.status === 403) return `Request rejected (${msg}). Check your API key and that it can use ${CONFIG.MODEL_ID}.`;
+            return `API error (${msg})`;
+        }
+
+        function stylePrefix() {
+            const s = (settings.style || '').trim().replace(/[.:\s]+$/, '');
+            return s ? `${s}:\n` : '';
+        }
+
+        function base64ToBytes(b64) {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return bytes;
+        }
+
+        function pcmToWavBlob(pcm, sampleRate) {
+            const header = new ArrayBuffer(44);
+            const v = new DataView(header);
+            const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+            writeStr(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true);
+            writeStr(8, 'WAVE'); writeStr(12, 'fmt ');
+            v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+            v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+            v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+            writeStr(36, 'data'); v.setUint32(40, pcm.length, true);
+            return new Blob([header, pcm], { type: 'audio/wav' });
+        }
+
+        // Gemini TTS clips end with a decoder glitch: after the last word there is a pause, then
+        // a ~150ms burst of near-full-scale noise (louder than any speech, clipping, very harsh).
+        // Clips can also start with a ~10ms click. This finds both and removes them, trims the
+        // trailing silence, fades out and appends clean silence.
+        function cleanEdges(bytes, sampleRate) {
+            const n = Math.floor(bytes.length / 2);
+            const src = new Int16Array(bytes.buffer, bytes.byteOffset, n);
+            const W = Math.max(1, Math.round(sampleRate * 0.01)); // 10ms windows
+            const count = Math.floor(n / W);
+            if (count < 20) return bytes.slice(0, n * 2);
+
+            const rms = new Float32Array(count), hf = new Float32Array(count), clip = new Uint8Array(count);
+            for (let w = 0; w < count; w++) {
+                let ss = 0, d = 0, c = 0;
+                for (let i = w * W; i < (w + 1) * W; i++) {
+                    const v = src[i];
+                    ss += v * v;
+                    if (v >= 32000 || v <= -32000) c = 1;
+                    if (i > w * W) d += Math.abs(v - src[i - 1]);
+                }
+                rms[w] = Math.sqrt(ss / W);
+                hf[w] = rms[w] ? d / W / rms[w] : 0; // harshness: high for noise, low for vowels
+                clip[w] = c;
+            }
+
+            const voiced = Array.from(rms).filter(r => r > 1000).sort((a, b) => a - b);
+            const speechRms = voiced.length ? voiced[voiced.length >> 1] : 3000;
+            const quiet = Math.max(150, speechRms * 0.03);
+            const isQuiet = (w) => rms[w] < quiet;
+
+            let endW = count;
+            const maxCutW = 150; // never remove more than 1.5s from the end
+            for (let pass = 0; pass < 3; pass++) {
+                let last = endW - 1;
+                while (last >= 0 && isQuiet(last)) last--;
+                if (last < 0) break;
+                // Walk back to the start of this sound: stop at a pause of 60ms or more.
+                let start = last, gap = 0;
+                for (let w = last; w >= 0; w--) {
+                    if (isQuiet(w)) { if (++gap >= 6) { start = w + gap; break; } }
+                    else { gap = 0; start = w; }
+                }
+                const len = last - start + 1;
+                if (len > 50 || count - start > maxCutW) break; // longer than 500ms: real speech
+                let ss = 0, hfSum = 0, clipped = 0;
+                for (let w = start; w <= last; w++) { ss += rms[w] * rms[w]; hfSum += hf[w]; clipped += clip[w]; }
+                const segRms = Math.sqrt(ss / len), segHf = hfSum / len;
+                const isGlitch = segHf > 0.45 && (clipped > 0 || segRms > speechRms * 1.8);
+                if (!isGlitch) break;
+                console.info(`VoxGem: removed ${len * 10}ms noise burst at ${(start * W / sampleRate).toFixed(2)}s`);
+                endW = start;
+            }
+
+            // Keep up to 150ms of the natural pause after the last word.
+            let lastSound = endW - 1;
+            while (lastSound >= 0 && isQuiet(lastSound)) lastSound--;
+            const end = Math.min(endW, lastSound + 16) * W;
+
+            const pad = Math.round(sampleRate * 0.25);
+            const out = new Int16Array(end + pad);
+            out.set(src.subarray(0, end));
+
+            // Leading click: a sound of 60ms or less in the first 50ms, followed by a 40ms pause.
+            let first = 0;
+            while (first < 5 && isQuiet(first)) first++;
+            if (first < 5) {
+                let w = first, gap = 0;
+                while (w < 12 && gap < 4) { gap = isQuiet(w) ? gap + 1 : 0; w++; }
+                if (gap >= 4 && (w - gap) - first <= 6) {
+                    out.fill(0, 0, (w - gap) * W);
+                    console.info(`VoxGem: removed ${((w - gap) - first) * 10}ms click at start`);
+                }
+            }
+
+            const fade = Math.min(end, Math.round(sampleRate * 0.02));
+            for (let i = 0; i < fade; i++) out[end - fade + i] = Math.round(out[end - fade + i] * (1 - i / fade));
+            return new Uint8Array(out.buffer);
+        }
+
+        async function callTts(parts, speechConfig, signal) {
+            const key = getApiKey();
+            const url = `${CONFIG.API_BASE}/${CONFIG.MODEL_ID}:generateContent`;
+            const res = await fetch(url, {
+                method: 'POST',
+                signal,
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts }],
+                    generationConfig: { responseModalities: ['AUDIO'], speechConfig }
+                })
+            });
+            if (!res.ok) {
+                const msg = await readApiError(res);
+                throw new Error(describeApiError(res, msg));
+            }
+            const data = await res.json();
+            const cand = data.candidates && data.candidates[0];
+            const part = cand && cand.content && cand.content.parts && cand.content.parts.find(p => p.inlineData && p.inlineData.data);
+            if (!part) {
+                const reason = (cand && cand.finishReason) || (data.promptFeedback && data.promptFeedback.blockReason) || 'unknown';
+                throw new Error(`No audio returned (reason: ${reason}). The text may have been blocked or was empty.`);
+            }
+            const rateMatch = /rate=(\d+)/.exec(part.inlineData.mimeType || '');
+            const rate = rateMatch ? Number(rateMatch[1]) : CONFIG.SAMPLE_RATE;
+            return pcmToWavBlob(cleanEdges(base64ToBytes(part.inlineData.data), rate), rate);
+        }
+
+        const singleConfig = (voice) => ({ voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } });
+        const dialogueConfig = (sofia, omri) => ({
+            multiSpeakerVoiceConfig: {
+                speakerVoiceConfigs: [
+                    { speaker: 'Sofia', voiceConfig: { prebuiltVoiceConfig: { voiceName: sofia } } },
+                    { speaker: 'Omri', voiceConfig: { prebuiltVoiceConfig: { voiceName: omri } } }
+                ]
+            }
+        });
+
+        // Splits a dialogue into turns. Accepts "sofia:" / "OMRI:" in any case. A line with no
+        // speaker prefix continues the previous turn (or starts a Sofia turn if it comes first).
+        function parseDialogue(raw) {
+            const turns = [];
+            let unknown = 0;
+            raw.split(/\r?\n/).forEach((line) => {
+                const t = line.trim();
+                if (!t) return;
+                const m = /^(sofia|omri)\s*:\s*(.*)$/i.exec(t);
+                if (m) {
+                    turns.push({ speaker: m[1].toLowerCase() === 'sofia' ? 'Sofia' : 'Omri', text: m[2].trim() });
+                } else {
+                    unknown++;
+                    const last = turns[turns.length - 1];
+                    if (last) last.text = last.text ? `${last.text} ${t}` : t;
+                    else turns.push({ speaker: 'Sofia', text: t });
+                }
+            });
+            const clean = turns.filter(tn => tn.text);
+            return {
+                turns: clean,
+                omriTurns: clean.filter(tn => tn.speaker === 'Omri').length,
+                unknown
+            };
+        }
+
+        // ===================== Voice previews =====================
+        const previewCache = new Map();
+        const previewAudio = new Audio();
+        const previewControllers = {};
+
+        async function playPreview(who) {
+            // Clicking again while a preview is loading cancels it.
+            if (previewControllers[who]) { previewControllers[who].abort(); return; }
+            if (!getApiKey()) { openKeyDrawer('Add your Gemini API key first.'); return; }
+            const voice = effectiveVoice(who);
+            if (!voice) { showMessage('Choose or type a voice name first.', 'warn'); messageEl.classList.remove('hidden'); return; }
+            const btn = $(`${who}-preview`);
+            const cacheKey = `${voice}|${settings.style}`;
+            const original = btn.innerHTML;
+            try {
+                let url = previewCache.get(cacheKey);
+                if (!url) {
+                    const controller = new AbortController();
+                    previewControllers[who] = controller;
+                    btn.textContent = 'Cancel';
+                    const blob = await callTts([{ text: stylePrefix() + CONFIG.PREVIEW[who] }], singleConfig(voice), controller.signal);
+                    url = URL.createObjectURL(blob);
+                    previewCache.set(cacheKey, url);
+                }
+                if (wavesurfer && wavesurfer.isPlaying()) wavesurfer.pause();
+                previewAudio.pause();
+                previewAudio.src = url;
+                await previewAudio.play();
+                hideMessage();
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    showMessage(`Preview failed: ${e.message}`);
+                    messageEl.classList.remove('hidden');
+                }
+            } finally {
+                previewControllers[who] = null;
+                btn.innerHTML = original;
+            }
+        }
+        $('sofia-preview').addEventListener('click', () => playPreview('sofia'));
+        $('omri-preview').addEventListener('click', () => playPreview('omri'));
+
+        function openKeyDrawer(msg) {
+            apiDrawer.classList.remove('hidden');
+            apiKeyInput.focus();
+            if (msg) { showMessage(msg); messageEl.classList.remove('hidden'); }
+        }
+
+        // ===================== Generate =====================
+        const generateBtn = $('generate-btn');
+        let currentBlob = null;
+        let currentAudioUrl = null;
+        let downloaded = true;
+        let genController = null;
+
+        function setGenerating(on) {
+            $('gen-icon').classList.toggle('hidden', on);
+            $('gen-spinner').classList.toggle('hidden', !on);
+            $('gen-text').textContent = on ? 'Stop generating' : 'Generate Audio';
+            generateBtn.classList.toggle('bg-blue-600', !on);
+            generateBtn.classList.toggle('hover:bg-blue-500', !on);
+            generateBtn.classList.toggle('bg-red-600', on);
+            generateBtn.classList.toggle('hover:bg-red-500', on);
+        }
+
+        // The Generate button doubles as Stop while a request is running.
+        async function generate() {
+            if (genController) { genController.abort(); return; }
+            const raw = scriptInput.value.trim();
+            if (!getApiKey()) { openKeyDrawer('Add your Gemini API key first.'); return; }
+            if (!raw) { showMessage('Write some Italian text first.', 'warn'); messageEl.classList.remove('hidden'); return; }
+
+            const sofia = effectiveVoice('sofia');
+            if (!sofia) { showMessage('Choose a voice for Sofia.', 'warn'); messageEl.classList.remove('hidden'); return; }
+
+            let parts, speechConfig, notice = '';
+            if (settings.mode === 'dialogue') {
+                const d = parseDialogue(raw);
+                if (d.omriTurns === 0) {
+                    // No Omri lines: fall back to a plain single-speaker request.
+                    parts = [{ text: stylePrefix() + d.turns.map(tn => tn.text).join('\n') }];
+                    speechConfig = singleConfig(sofia);
+                    notice = 'No "Omri:" lines found, so this was read by Sofia alone.';
+                } else {
+                    const omri = effectiveVoice('omri');
+                    if (!omri) { showMessage('Choose a voice for Omri.', 'warn'); messageEl.classList.remove('hidden'); return; }
+                    // Multi-speaker requests need one part per turn, each tagged with its speaker.
+                    // The style instructions ride along at the start of the first turn.
+                    parts = d.turns.map((tn, i) => ({
+                        text: (i === 0 ? stylePrefix() : '') + tn.text,
+                        speechMetadata: { speaker: tn.speaker }
+                    }));
+                    speechConfig = dialogueConfig(sofia, omri);
+                    const warns = [];
+                    if (sofia === omri) warns.push('Sofia and Omri use the same voice, so they will sound identical.');
+                    if (d.unknown > 0) warns.push(`${d.unknown} line(s) have no "Sofia:" or "Omri:" prefix.`);
+                    notice = warns.join(' ');
+                }
+            } else {
+                parts = [{ text: stylePrefix() + raw }];
+                speechConfig = singleConfig(sofia);
+            }
+
+            hideMessage();
+            genController = new AbortController();
+            setGenerating(true);
+            try {
+                const blob = await callTts(parts, speechConfig, genController.signal);
+                loadAudio(blob);
+                if (notice) { showMessage(notice, 'warn'); messageEl.classList.remove('hidden'); }
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    showMessage('Generation stopped.', 'warn');
+                } else {
+                    console.error(e);
+                    showMessage(`Generation failed: ${e.message}`);
+                }
+                messageEl.classList.remove('hidden');
+            } finally {
+                genController = null;
+                setGenerating(false);
+            }
+        }
+
+        generateBtn.addEventListener('click', generate);
+
+        // ===================== Player =====================
+        let wavesurfer = null;
+        let isAudioReady = false;
+
+        function updateWaveColors() {
+            if (!wavesurfer) return;
+            wavesurfer.setOptions({ waveColor: htmlEl.classList.contains('dark') ? '#334155' : '#cbd5e1' });
+        }
+
+        function initWaveSurfer() {
+            if (wavesurfer) wavesurfer.destroy();
+            isAudioReady = false;
+            const isDark = htmlEl.classList.contains('dark');
+            const isMobile = window.innerWidth < 640;
+
+            wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: isDark ? '#334155' : '#cbd5e1',
+                progressColor: '#3b82f6',
+                cursorColor: '#ef4444',
+                cursorWidth: 2,
+                barWidth: 2, barGap: 1, barRadius: 2,
+                height: isMobile ? 120 : 160,
+                normalize: true,
+                minPxPerSec: 10,
+                plugins: [WaveSurfer.Timeline.create({
+                    container: '#wave-timeline',
+                    height: 20,
+                    style: { fontSize: '11px', color: isDark ? '#64748b' : '#94a3b8' }
+                })]
+            });
+
+            wavesurfer.on('loading', () => $('loading-overlay').classList.remove('hidden'));
+            wavesurfer.on('ready', () => {
+                isAudioReady = true;
+                $('loading-overlay').classList.add('hidden');
+                $('total-time').textContent = formatTime(wavesurfer.getDuration());
+                $('current-time').textContent = formatTime(0);
+                $('float-time').textContent = formatTime(0);
+                wavesurfer.setPlaybackRate(Number(settings.speed) || 1, true);
+                updateFloatingControlsVisibility();
+            });
+            wavesurfer.on('timeupdate', (t) => {
+                const f = formatTime(t);
+                $('current-time').textContent = f;
+                $('float-time').textContent = f;
+            });
+            wavesurfer.on('play', () => togglePlayButton(true));
+            wavesurfer.on('pause', () => togglePlayButton(false));
+            wavesurfer.on('finish', () => togglePlayButton(false));
+        }
+
+        function defaultFileName() {
+            const words = scriptInput.value
+                .replace(/^\s*(sofia|omri)\s*:\s*/gim, '')
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .toLowerCase().match(/[a-z0-9]+/g) || [];
+            const slug = words.slice(0, 4).join('-') || 'audio';
+            const d = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+            return `voxgem-${slug}-${stamp}.wav`;
+        }
+
+        function loadAudio(blob) {
+            if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+            currentBlob = blob;
+            currentAudioUrl = URL.createObjectURL(blob);
+            downloaded = false;
+
+            $('player-section').classList.remove('hidden');
+            $('zoom-slider').value = 10;
+            $('zoom-label').textContent = '1.0x';
+            $('filename-input').value = defaultFileName();
+            togglePlayButton(false);
+
+            initWaveSurfer();
+            wavesurfer.loadBlob(blob);
+            previewAudio.pause();
+
+            setTimeout(() => $('player-section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+        }
+
+        $('download-btn').addEventListener('click', () => {
+            if (!currentBlob) return;
+            let name = $('filename-input').value.trim().replace(/[\\/:*?"<>|]+/g, '-') || defaultFileName();
+            if (!/\.wav$/i.test(name)) name += '.wav';
+            const a = document.createElement('a');
+            a.href = currentAudioUrl;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            downloaded = true;
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (currentBlob && !downloaded) { e.preventDefault(); e.returnValue = ''; }
+        });
+
+        // ===================== Controls =====================
+        const playBtn = $('play-btn');
+        const floatingControls = $('floating-controls');
+        const stickyHeader = document.querySelector('header');
+        const playerSection = $('player-section');
+
+        function togglePlayButton(isPlaying) {
+            $('play-icon').classList.toggle('hidden', isPlaying);
+            $('pause-icon').classList.toggle('hidden', !isPlaying);
+            $('play-text').textContent = isPlaying ? 'Pause' : 'Play';
+            $('float-play-icon').classList.toggle('hidden', isPlaying);
+            $('float-pause-icon').classList.toggle('hidden', !isPlaying);
+            $('float-play-text').textContent = isPlaying ? 'Pause' : 'Play';
+        }
+
+        function playPause() {
+            if (!wavesurfer || !isAudioReady) return;
+            previewAudio.pause();
+            wavesurfer.playPause();
+        }
+
+        function skip(delta) {
+            if (!wavesurfer || !isAudioReady) return;
+            const t = Math.max(0, Math.min(wavesurfer.getDuration(), wavesurfer.getCurrentTime() + delta));
+            wavesurfer.setTime(t);
+        }
+
+        playBtn.addEventListener('click', playPause);
+        $('float-play-btn').addEventListener('click', playPause);
+        $('skip-back').addEventListener('click', () => skip(-2));
+        $('skip-forward').addEventListener('click', () => skip(2));
+        $('float-skip-back').addEventListener('click', () => skip(-2));
+        $('float-skip-forward').addEventListener('click', () => skip(2));
+        $('replay-btn').addEventListener('click', () => {
+            if (!wavesurfer || !isAudioReady) return;
+            previewAudio.pause();
+            wavesurfer.setTime(0);
+            wavesurfer.play();
+        });
+        $('float-top-btn').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        function updateFloatingControlsVisibility() {
+            const hide = () => floatingControls.classList.add('translate-y-24', 'opacity-0', 'pointer-events-none');
+            if (!isAudioReady || playerSection.classList.contains('hidden')) { hide(); return; }
+            const r = playBtn.getBoundingClientRect();
+            const headerBottom = stickyHeader ? stickyHeader.getBoundingClientRect().bottom : 0;
+            const mainHidden = r.top < headerBottom || r.bottom > window.innerHeight;
+            if (mainHidden) floatingControls.classList.remove('translate-y-24', 'opacity-0', 'pointer-events-none');
+            else hide();
+        }
+        window.addEventListener('scroll', updateFloatingControlsVisibility, { passive: true });
+        window.addEventListener('resize', updateFloatingControlsVisibility, { passive: true });
+
+        // Speed
+        const speedSelect = $('speed-select');
+        const savedSpeed = String(settings.speed);
+        if ([...speedSelect.options].some(o => o.value === savedSpeed)) speedSelect.value = savedSpeed;
+        else settings.speed = 1;
+        speedSelect.addEventListener('change', (e) => {
+            settings.speed = Number(e.target.value);
+            persistSettings();
+            if (wavesurfer && isAudioReady) wavesurfer.setPlaybackRate(settings.speed, true);
+        });
+
+        // Zoom
+        const zoomSlider = $('zoom-slider');
+        function applyZoom(v) {
+            if (!wavesurfer || !isAudioReady) return;
+            const z = Math.max(Number(zoomSlider.min), Math.min(Number(zoomSlider.max), v));
+            zoomSlider.value = z;
+            wavesurfer.zoom(z);
+            $('zoom-label').textContent = `${(z / 10).toFixed(1)}x`;
+        }
+        zoomSlider.addEventListener('input', (e) => applyZoom(Number(e.target.value)));
+
+        const waveformCard = $('waveform-card');
+        waveformCard.addEventListener('wheel', (e) => {
+            if (!wavesurfer || !isAudioReady) return;
+            if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            e.preventDefault();
+            const cur = Number(zoomSlider.value);
+            const step = Math.max(15, Math.round(cur * 0.15));
+            applyZoom(cur + (e.deltaY < 0 ? step : -step));
+        }, { passive: false });
+
+        // Pinch to zoom
+        let pinchStartDist = 0, pinchStartZoom = 0, pinchPending = null;
+        const touchDist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+        waveformCard.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && wavesurfer && isAudioReady) {
+                pinchStartDist = touchDist(e.touches);
+                pinchStartZoom = Number(zoomSlider.value);
+            }
+        }, { passive: true });
+        waveformCard.addEventListener('touchmove', (e) => {
+            if (e.touches.length !== 2 || !pinchStartDist) return;
+            e.preventDefault();
+            const schedule = pinchPending === null;
+            pinchPending = pinchStartZoom * (touchDist(e.touches) / pinchStartDist);
+            if (schedule) requestAnimationFrame(() => {
+                if (pinchPending !== null) applyZoom(Math.round(pinchPending));
+                pinchPending = null;
+            });
+        }, { passive: false });
+        waveformCard.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinchStartDist = 0; }, { passive: true });
+        waveformCard.addEventListener('touchcancel', () => { pinchStartDist = 0; }, { passive: true });
+
+        // ===================== Keyboard =====================
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                generate();
+                return;
+            }
+            const tag = document.activeElement && document.activeElement.tagName;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || (document.activeElement && document.activeElement.isContentEditable)) return;
+            if (!wavesurfer || playerSection.classList.contains('hidden')) return;
+            if (e.code === 'Space') { e.preventDefault(); playPause(); }
+            else if (e.code === 'ArrowLeft') { e.preventDefault(); skip(-2); }
+            else if (e.code === 'ArrowRight') { e.preventDefault(); skip(2); }
+        });
+
+        // ===================== Boot =====================
+        const jsStatus = $('js-status');
+        if (typeof WaveSurfer !== 'undefined') {
+            jsStatus.textContent = 'Ready';
+            jsStatus.className = 'text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-medium shrink-0';
+        } else {
+            jsStatus.textContent = 'WaveSurfer blocked';
+            jsStatus.className = 'text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 font-medium shrink-0';
+        }
+    </script>
+</body>
+</html>
